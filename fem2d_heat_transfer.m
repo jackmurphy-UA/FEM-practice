@@ -1,8 +1,7 @@
 
     % 2D FEM solver for heat transfer on rectangular domains
     % Using Q4 elements with uniform mesh
-    % To do: compute analytical solutions and plot error (as a function of
-    % element size)
+    % To do: compute analytical solutions and plot L2 error (as a function of element size or number of elements)
 
 function fem2d_heat_transfer()
         
