@@ -1,0 +1,22 @@
+name: Build and Commit LaTeX PDF
+on: [push]
+
+jobs:
+  build_latex:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # Required to push the PDF back to the repo
+    steps:
+      - name: Set up Git repository
+        uses: actions/checkout@v4
+
+      - name: Compile LaTeX document
+        uses: xu-cheng/latex-action@v3
+        with:
+          root_file: FEM-class-notes.tex # Ensure this matches your filename
+
+      - name: Commit and push PDF
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "Auto-generate PDF from LaTeX source"
+          file_pattern: 'FEM-class-notes.pdf' # Limits the commit to just the PDF
