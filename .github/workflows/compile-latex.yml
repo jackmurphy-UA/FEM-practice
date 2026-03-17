@@ -13,7 +13,7 @@ jobs:
       - name: Compile LaTeX document
         uses: xu-cheng/latex-action@v3
         with:
-          root_file: FEM-class-notes.tex # Ensure this matches your filename
+          root_file: sp26-course-notes/FEM-class-notes.tex # Ensure this matches the filename
 
       - name: Commit and push PDF
         uses: stefanzweifel/git-auto-commit-action@v5
