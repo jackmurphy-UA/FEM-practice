@@ -1,0 +1,946 @@
+\documentclass[11pt]{article}
+
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath,amssymb,amsthm,mathtools,mathrsfs,bm}
+\usepackage{enumitem}
+\usepackage{hyperref}
+\usepackage{microtype}
+\usepackage{setspace}
+\usepackage{titlesec}
+\usepackage{xcolor}
+
+\hypersetup{
+  colorlinks=true,
+  linkcolor=blue!50!black,
+  urlcolor=blue!50!black,
+  citecolor=blue!50!black,
+  pdftitle={Class Notes for Mathematical Introduction to the Finite Element Method}
+}
+
+\setstretch{1.08}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{0.5em}
+\setlist[itemize]{topsep=2pt,itemsep=2pt,parsep=0pt}
+\setlist[enumerate]{topsep=2pt,itemsep=2pt,parsep=0pt}
+\titleformat{\section}{\large\bfseries}{\thesection.}{0.5em}{}
+\titleformat{\subsection}{\normalsize\bfseries}{\thesubsection.}{0.5em}{}
+\titleformat{\subsubsection}{\normalsize\itshape}{\thesubsubsection.}{0.5em}{}
+
+\newtheorem{theorem}{Theorem}[section]
+\newtheorem{proposition}[theorem]{Proposition}
+\newtheorem{lemma}[theorem]{Lemma}
+\newtheorem{corollary}[theorem]{Corollary}
+\theoremstyle{definition}
+\newtheorem{definition}[theorem]{Definition}
+\newtheorem{example}[theorem]{Example}
+\newtheorem{remark}[theorem]{Remark}
+
+\newcommand{\R}{\mathbb{R}}
+\newcommand{\N}{\mathbb{N}}
+\newcommand{\eps}{\varepsilon}
+\newcommand{\grad}{\nabla}
+\newcommand{\dd}{\,\mathrm{d}}
+\newcommand{\ip}[2]{\left\langle #1,#2\right\rangle}
+\newcommand{\norm}[1]{\left\lVert #1\right\rVert}
+\newcommand{\abs}[1]{\left\lvert #1\right\rvert}
+\newcommand{\set}[1]{\left\{ #1\right\}}
+\newcommand{\eH}{\widetilde{H}}
+\DeclareMathOperator{\supp}{supp}
+\DeclareMathOperator{\dist}{dist}
+\DeclareMathOperator{\spanop}{span}
+
+\title{Class Notes for \emph{Mathematical Introduction to the Finite Element Method}}
+\author{Synthesized from class notes, supplementary notes, and homework solutions}
+\date{Spring 2026}
+
+\begin{document}
+\maketitle
+\tableofcontents
+\newpage
+
+\section{The finite element point of view}
+
+The course begins with a simple but important idea: boundary value problems for differential equations are usually posed in infinite-dimensional spaces, while computation takes place in finite-dimensional spaces. The finite element method (FEM) is the systematic passage from the first setting to the second.
+
+A useful high-level template is:
+\begin{enumerate}
+    \item Start from a strong form of a PDE or boundary value problem.
+    \item Rewrite it as a variational (weak) problem on an infinite-dimensional function space.
+    \item Choose a finite-dimensional subspace adapted to the geometry and regularity of the problem.
+    \item Represent the discrete unknown in a basis of that subspace.
+    \item Convert the weak problem into a linear algebra problem
+    \[
+        A\mathbf{u} = \mathbf{L},
+    \]
+    where $A$ is the stiffness matrix and $\mathbf{L}$ is the load vector.
+    \item Solve the resulting linear system.
+\end{enumerate}
+
+This viewpoint already explains why functional analysis is unavoidable: one needs norms, completeness, duality, weak derivatives, trace spaces, and abstract existence theorems before discretization makes sense.
+
+\subsection{Why weak formulations are necessary}
+
+A recurring theme is that the strong formulation may be too restrictive. Even physically natural problems can fail to possess sufficiently smooth solutions.
+
+\begin{example}[Composite bar with discontinuous material coefficient]
+Consider
+\[
+-(\alpha u')' = 0 \quad \text{in } [-1,1],
+\qquad u(-1)=1,\quad u(1)=0,
+\]
+with
+\[
+\alpha(x)=
+\begin{cases}
+1, & x\in[-1,0),\\
+2, & x\in[0,1].
+\end{cases}
+\]
+Then no function $u\in C^2([-1,1])$ satisfies the boundary value problem.
+\end{example}
+
+\begin{proof}
+Assume for contradiction that $u\in C^2([-1,1])$ solves the equation. Since $\alpha$ is constant on each side of $0$, the equation implies that $u'$ is constant on $[-1,0)$ and also constant on $(0,1]$. Because $u\in C^2$, the derivative $u'$ is continuous at $0$, so in fact there exists $m\in\R$ such that
+\[
+ u'(x)=m \quad \text{for } x<0, \qquad u'(x)=m \quad \text{for } x>0.
+\]
+Now examine the flux $\alpha u'$. For $x<0$ it equals $m$, while for $x>0$ it equals $2m$. Since $(\alpha u')'$ exists classically, the function $\alpha u'$ must be continuous; hence $m=2m$, so $m=0$. Therefore $u$ is constant on $[-1,1]$, which contradicts $u(-1)=1$ and $u(1)=0$.
+\end{proof}
+
+The lesson is that smoothness of the classical solution is too strong a demand when coefficients jump. Weak formulations are designed precisely to handle such situations.
+
+\subsection{From strong to weak form}
+
+Consider a prototype Dirichlet problem
+\[
+-\Delta u = f \quad \text{in } \Omega,\qquad u=0 \quad \text{on } \partial\Omega.
+\]
+If $u$ is smooth, multiply by a test function $v$ and integrate:
+\[
+\int_\Omega (-\Delta u)v\,\dd x = \int_\Omega fv\,\dd x.
+\]
+Integrating by parts gives
+\[
+\int_\Omega \grad u\cdot \grad v\,\dd x - \int_{\partial\Omega} \partial_\nu u\,v\,\dd s = \int_\Omega fv\,\dd x.
+\]
+If $v$ vanishes on the boundary, the boundary term drops out. This suggests the weak problem
+\[
+\text{find } u\in H_0^1(\Omega) \text{ such that } \int_\Omega \grad u\cdot \grad v\,\dd x = \int_\Omega fv\,\dd x
+\quad \forall v\in H_0^1(\Omega).
+\]
+
+Two ideas are already visible.
+\begin{itemize}
+    \item We transferred one derivative from $u$ onto $v$, so the solution space only needs first derivatives in $L^2$.
+    \item Boundary conditions are enforced either in the space itself or through boundary terms that survive integration by parts.
+\end{itemize}
+
+This distinction becomes the essential-versus-natural boundary condition dichotomy discussed later.
+
+\section{Functional-analytic framework}
+
+\subsection{Normed, Banach, and Hilbert spaces}
+
+\begin{definition}
+Let $V$ be a vector space over $\R$. A function $\norm{\cdot}_V:V\to[0,\infty)$ is a \emph{norm} if for all $u,v\in V$ and $\lambda\in\R$:
+\begin{enumerate}
+    \item $\norm{u}_V=0$ iff $u=0$,
+    \item $\norm{\lambda u}_V = \abs{\lambda}\norm{u}_V$,
+    \item $\norm{u+v}_V \le \norm{u}_V+\norm{v}_V$.
+\end{enumerate}
+A vector space equipped with a norm is a \emph{normed space}. A complete normed space is a \emph{Banach space}. A complete inner product space is a \emph{Hilbert space}.
+\end{definition}
+
+Typical examples in this course are:
+\begin{itemize}
+    \item $\R^n$ with Euclidean norm;
+    \item $L^p(\Omega)$ for $1\le p\le\infty$ (Banach spaces);
+    \item $H^1(\Omega)$ and $H_0^1(\Omega)$ (Hilbert spaces).
+\end{itemize}
+
+If $(\cdot,\cdot)_V$ is an inner product, the induced norm is $\norm{u}_V = (u,u)_V^{1/2}$. Not every norm arises from an inner product, but the FEM setting is particularly pleasant when the weak formulation is governed by a coercive symmetric bilinear form, since then one effectively recovers an energy inner product.
+
+\subsection{Equivalent norms}
+
+Different norms can define the same topology and the same notion of convergence.
+
+\begin{definition}
+Two norms $\norm{\cdot}_1$ and $\norm{\cdot}_2$ on $V$ are \emph{equivalent} if there exist $C_1,C_2>0$ such that
+\[
+C_1\norm{v}_1 \le \norm{v}_2 \le C_2\norm{v}_1 \qquad \forall v\in V.
+\]
+\end{definition}
+
+Equivalent norms induce the same Cauchy sequences and the same open sets. This is important because Sobolev spaces admit several natural norms.
+
+\begin{example}[Two standard norms on $H^1(\Omega)$]
+The norms
+\[
+\norm{u}_{H^1} = \big(\norm{u}_{L^2}^2 + \norm{\grad u}_{L^2}^2\big)^{1/2}
+\qquad \text{and} \qquad
+\norm{u}_{L^2} + \norm{\grad u}_{L^2}
+\]
+are equivalent. Indeed, for $a,b\ge 0$,
+\[
+(a^2+b^2)^{1/2} \le a+b \le \sqrt{2}\,(a^2+b^2)^{1/2}.
+\]
+\end{example}
+
+\subsection{Bounded linear functionals and dual spaces}
+
+\begin{definition}
+If $V$ is normed, its \emph{dual space} $V^*$ is the space of all bounded linear functionals $J:V\to\R$.
+\end{definition}
+
+The course repeatedly uses the equivalence of the following descriptions of the dual norm:
+\[
+\norm{J}_{V^*} = \sup_{\norm{v}=1} \abs{J(v)}
+= \sup_{v\neq 0} \frac{\abs{J(v)}}{\norm{v}}
+= \inf\set{C>0 : \abs{J(v)}\le C\norm{v}\ \forall v\in V}.
+\]
+
+Thus boundedness, continuity at the origin, and continuity everywhere are equivalent for linear functionals. One also needs the completeness of dual spaces.
+
+\begin{theorem}
+For every normed space $V$, the dual space $V^*$ is Banach.
+\end{theorem}
+
+\begin{proof}[Proof idea]
+If $\{J_n\}$ is Cauchy in operator norm, then for each fixed $v\in V$ the scalar sequence $\{J_n(v)\}$ is Cauchy in $\R$, hence converges. Define $J(v)=\lim_n J_n(v)$. One then checks that $J$ is linear, bounded, and that $J_n\to J$ in operator norm.
+\end{proof}
+
+\subsection{Finite-dimensional subspaces}
+
+Finite-dimensional spaces are analytically much simpler than infinite-dimensional ones, and FEM constantly exploits this.
+
+\begin{lemma}[Large coefficients produce large vectors]
+Let $\{x_1,\dots,x_n\}$ be linearly independent in a normed space $V$. Then there exists $c>0$ such that for all scalars $\alpha_1,\dots,\alpha_n$,
+\[
+c\big(\abs{\alpha_1}+\cdots+\abs{\alpha_n}\big)
+\le \norm{\alpha_1x_1+\cdots+\alpha_nx_n}.
+\]
+\end{lemma}
+
+A standard compactness argument on the set $\set{\alpha\in\R^n:\norm{\alpha}_{\ell^1}=1}$ gives the result.
+
+\begin{corollary}
+If $\dim V<\infty$, then:
+\begin{enumerate}
+    \item any two norms on $V$ are equivalent;
+    \item $V$ is complete;
+    \item every finite-dimensional subspace of a normed space is closed;
+    \item every linear functional on $V$ is bounded.
+\end{enumerate}
+\end{corollary}
+
+This is one of the hidden reasons why Galerkin approximation is tractable: once the trial space is finite-dimensional, linear algebra controls everything.
+
+\subsection{The Riesz representation principle}
+
+On Hilbert spaces, bounded linear functionals are represented by inner products.
+
+\begin{theorem}[Riesz representation]
+Let $V$ be a Hilbert space. For every $\ell\in V^*$ there exists a unique $z\in V$ such that
+\[
+\ell(v) = (z,v)_V \qquad \forall v\in V.
+\]
+Moreover $\norm{\ell}_{V^*}=\norm{z}_V$.
+\end{theorem}
+
+This theorem is the abstract engine behind the simplest weak formulations, especially when the bilinear form itself is an inner product.
+
+\section{Test functions, distributions, and weak derivatives}
+
+\subsection{Smooth compactly supported test functions}
+
+\begin{definition}
+For an open set $\Omega\subset\R^d$, define
+\[
+\mathscr{D}(\Omega)=C_c^\infty(\Omega)
+= \set{\varphi\in C^\infty(\Omega): \supp \varphi \Subset \Omega}.
+\]
+These are the smooth compactly supported test functions.
+\end{definition}
+
+They are the natural objects against which weak derivatives and distributions are defined.
+
+\begin{example}[A standard bump function]
+For $x_0>0$, define
+\[
+\varphi(x)=
+\begin{cases}
+\exp\!\left(-\dfrac{x_0^2}{x_0^2-x^2}\right), & \abs{x}<x_0,\\
+0, & \abs{x}\ge x_0.
+\end{cases}
+\]
+Then $\varphi\in C^\infty(\R)$. The key point is that every derivative of $\varphi$ tends to $0$ at $\pm x_0$, so the zero extension matches all derivatives continuously.
+\end{example}
+
+This example is fundamental because it shows that test functions can be localized very sharply while remaining infinitely differentiable.
+
+\subsection{Variational lemma}
+
+The following principle is used constantly: if a function pairs to zero against all test functions, then the function itself must vanish.
+
+\begin{proposition}[Variational lemma]
+\leavevmode
+\begin{enumerate}[label=(\alph*)]
+    \item If $f\in C(\Omega)$ and
+    \[
+    \int_\Omega f\varphi\,\dd x = 0 \qquad \forall \varphi\in \mathscr{D}(\Omega),
+    \]
+    then $f\equiv 0$ on $\Omega$.
+    \item If $f\in L^1(\Omega)$ and
+    \[
+    \int_\Omega f\varphi\,\dd x = 0 \qquad \forall \varphi\in \mathscr{D}(\Omega),
+    \]
+    then $f=0$ almost everywhere on $\Omega$.
+\end{enumerate}
+\end{proposition}
+
+Part (a) follows by choosing a nonnegative bump function supported where $f$ has definite sign. Part (b) is proved by mollification: if $f$ annihilates all translated mollifiers, then its mollifications vanish, and passing to the limit yields $f=0$ a.e.
+
+\subsection{Distributions and distributional derivatives}
+
+A distribution is a continuous linear functional on $\mathscr{D}(\Omega)$. If $T$ is a distribution, its distributional derivative is defined by
+\[
+\ip{\partial_i T}{\varphi} := -\ip{T}{\partial_i\varphi}.
+\]
+This is exactly integration by parts without boundary terms.
+
+If $f\in L^1_{\mathrm{loc}}(\Omega)$, one identifies $f$ with the regular distribution
+\[
+\ip{f}{\varphi} := \int_\Omega f\varphi\,\dd x.
+\]
+Then $g$ is the weak derivative of $f$ in the $x_i$-direction if
+\[
+\int_\Omega f\,\partial_i\varphi\,\dd x = -\int_\Omega g\varphi\,\dd x
+\qquad \forall \varphi\in \mathscr{D}(\Omega).
+\]
+
+\begin{example}[Derivative of the Dirac delta]
+If $\delta_0$ denotes the Dirac mass at the origin, then
+\[
+\ip{\partial_i\delta_0}{\varphi} = -\partial_i\varphi(0).
+\]
+\end{example}
+
+\begin{example}[Heaviside-type jump]
+Let
+\[
+f(x)=
+\begin{cases}
+-1, & x\in(-1,0),\\
+0, & x=0,\\
+1, & x\in(0,1).
+\end{cases}
+\]
+Then $f$ does \emph{not} possess a weak derivative in $L^1(-1,1)$.
+\end{example}
+
+\begin{proof}
+For any $\varphi\in C_c^\infty(-1,1)$,
+\[
+\int_{-1}^1 f\varphi'\,\dd x
+= \int_{-1}^0 (-1)\varphi'\,\dd x + \int_0^1 \varphi'\,\dd x
+= -2\varphi(0).
+\]
+If a weak derivative $g\in L^1(-1,1)$ existed, then one would have
+\[
+-2\varphi(0) = -\int_{-1}^1 g\varphi\,\dd x.
+\]
+Choose test functions $\varphi_n$ supported in $(-1/n,1/n)$ with $\varphi_n(0)=1$ and $0\le \varphi_n\le 1$. Then the left-hand side is always $-2$, while the right-hand side tends to $0$ by absolute continuity of the integral. Contradiction.
+\end{proof}
+
+This example is very instructive: a function can be piecewise constant and still fail to have an $L^1$ weak derivative because its derivative is distributional rather than regular.
+
+\section{Sobolev spaces and traces}
+
+\subsection{Sobolev spaces}
+
+\begin{definition}
+For $1\le p\le \infty$ and integer $m\ge 0$,
+\[
+W^{m,p}(\Omega) = \set{u\in L^p(\Omega): \partial^\alpha u \in L^p(\Omega) \text{ for all } \abs{\alpha}\le m},
+\]
+where derivatives are understood in the weak sense. When $p=2$, one writes
+\[
+H^m(\Omega)=W^{m,2}(\Omega).
+\]
+\end{definition}
+
+In particular,
+\[
+H^1(\Omega)=\set{u\in L^2(\Omega): \partial_i u\in L^2(\Omega) \text{ for } i=1,\dots,d}.
+\]
+A standard norm on $H^1(\Omega)$ is
+\[
+\norm{u}_{H^1(\Omega)}^2 = \norm{u}_{L^2(\Omega)}^2 + \norm{\grad u}_{L^2(\Omega)}^2.
+\]
+
+For sufficiently regular domains one also has the closure characterization
+\[
+H_0^1(\Omega) = \overline{C_c^\infty(\Omega)}^{\,H^1(\Omega)}.
+\]
+
+\subsection{Lipschitz domains}
+
+The course works on bounded Lipschitz domains. This is the natural geometric class for trace theorems, integration by parts, and the existence of outward normals almost everywhere. It is also broad enough to include polygonal and polyhedral computational domains, which are essential for triangulation.
+
+\subsection{Poincare and Friedrichs inequalities}
+
+If $u\in H_0^1(\Omega)$, then the $L^2$ norm is controlled by the gradient:
+\[
+\norm{u}_{L^2(\Omega)} \le C_P \norm{\grad u}_{L^2(\Omega)}.
+\]
+Hence on $H_0^1(\Omega)$ the seminorm $\norm{\grad u}_{L^2}$ is equivalent to the full $H^1$ norm. More generally, if a positive-measure part $\Gamma_D\subset \partial\Omega$ carries homogeneous Dirichlet data, the same conclusion holds on
+\[
+H_{0,\Gamma_D}^1(\Omega):=\set{u\in H^1(\Omega): \gamma u=0 \text{ on } \Gamma_D}.
+\]
+
+For pure Neumann problems one instead uses the mean-zero subspace
+\[
+\eH^1(\Omega):=\set{u\in H^1(\Omega): \int_\Omega u\,\dd x = 0}.
+\]
+On this space the Poincare--Neumann inequality gives
+\[
+\norm{u}_{L^2(\Omega)} \le C \norm{\grad u}_{L^2(\Omega)}.
+\]
+
+\subsection{Trace theorem}
+
+The trace operator makes boundary values meaningful for $H^1$ functions.
+
+\begin{theorem}[Trace theorem]
+Let $\Omega\subset\R^d$ be bounded and Lipschitz. Then there exists a bounded linear map
+\[
+\gamma:H^1(\Omega)\to L^2(\partial\Omega)
+\]
+with the properties:
+\begin{enumerate}
+    \item $\norm{\gamma u}_{L^2(\partial\Omega)} \le C_\Omega \norm{u}_{H^1(\Omega)}$;
+    \item if $u\in C(\overline\Omega)\cap H^1(\Omega)$, then $\gamma u = u|_{\partial\Omega}$.
+\end{enumerate}
+\end{theorem}
+
+The range of $\gamma$ is not all of $L^2(\partial\Omega)$; it is the trace space.
+
+\begin{definition}
+Define
+\[
+H^{1/2}(\partial\Omega) := \set{\gamma u : u\in H^1(\Omega)}.
+\]
+Equip this space with the norm
+\[
+\norm{g}_{1/2} := \inf\set{\norm{u}_{H^1(\Omega)} : \gamma u = g}.
+\]
+\end{definition}
+
+\begin{proposition}
+$H^{1/2}(\partial\Omega)$ is a normed vector space, and the trace map
+\[
+\gamma:H^1(\Omega)\to H^{1/2}(\partial\Omega)
+\]
+is bounded with operator norm at most $1$ relative to the norm above.
+\end{proposition}
+
+\begin{proof}[Proof sketch]
+Linearity is inherited from the trace operator. Positivity of $\norm{\cdot}_{1/2}$ uses the trace theorem: if $\norm{g}_{1/2}=0$, choose extensions $u_k$ with $\gamma u_k=g$ and $\norm{u_k}_{H^1}\to 0$; then $\norm{g}_{L^2(\partial\Omega)}=\norm{\gamma u_k}_{L^2(\partial\Omega)}\to 0$, so $g=0$. Homogeneity and the triangle inequality are immediate from the definition by infimum. Finally, any $u\in H^1(\Omega)$ is an extension of its own trace, hence
+\[
+\norm{\gamma u}_{1/2}\le \norm{u}_{H^1(\Omega)}.
+\]
+\end{proof}
+
+Since the trace theorem also gives
+\[
+\norm{g}_{L^2(\partial\Omega)} \le C\norm{g}_{1/2},
+\]
+we get the continuous embedding
+\[
+H^{1/2}(\partial\Omega) \hookrightarrow L^2(\partial\Omega).
+\]
+
+\subsection{Lifting and completeness of the trace space}
+
+A central idea in the course is that nonhomogeneous Dirichlet data are removed by an extension (or lifting) into the interior.
+
+\begin{theorem}[Lifting operator]
+There exists a linear right inverse
+\[
+\gamma^\dagger:H^{1/2}(\partial\Omega)\to H^1(\Omega)
+\]
+such that
+\[
+\gamma(\gamma^\dagger g)=g \qquad \forall g\in H^{1/2}(\partial\Omega).
+\]
+Moreover, one may choose $\gamma^\dagger$ to be an isometry relative to the norm $\norm{\cdot}_{1/2}$:
+\[
+\norm{\gamma^\dagger g}_{H^1(\Omega)} = \norm{g}_{1/2}.
+\]
+\end{theorem}
+
+The geometry behind this is the orthogonal decomposition
+\[
+H^1(\Omega)=H_0^1(\Omega)\oplus \big(H_0^1(\Omega)\big)^\perp,
+\]
+and the fact that the trace is bijective on $\big(H_0^1(\Omega)\big)^\perp$. This yields both the lifting and the Hilbert structure of the trace space.
+
+\begin{corollary}
+$H^{1/2}(\partial\Omega)$ is a Hilbert space. In particular, it is complete.
+\end{corollary}
+
+Its dual is denoted by $H^{-1/2}(\partial\Omega)$ and naturally hosts Neumann or Robin boundary data.
+
+\section{Variational formulations and boundary conditions}
+
+\subsection{Essential and natural boundary conditions}
+
+When deriving a weak form by integration by parts, some boundary conditions are imposed through the choice of trial/test spaces, while others appear as explicit boundary terms.
+
+\begin{itemize}
+    \item \textbf{Essential boundary conditions:} typically Dirichlet data. These are built into the space, for example $u\in H_0^1(\Omega)$ or $u-G\in H_0^1(\Omega)$.
+    \item \textbf{Natural boundary conditions:} typically Neumann or Robin data. These arise in the linear functional or bilinear form after integration by parts.
+\end{itemize}
+
+If trial and test spaces are the same, one has a conforming Galerkin formulation. If they differ, one has a Petrov--Galerkin formulation.
+
+\subsection{Prototype: homogeneous Dirichlet Poisson problem}
+
+Consider
+\[
+-\Delta u=f \quad \text{in } \Omega,\qquad u=0 \quad \text{on } \partial\Omega.
+\]
+The weak form is
+\[
+\int_\Omega \grad u\cdot\grad v\,\dd x = \int_\Omega fv\,\dd x
+\qquad \forall v\in H_0^1(\Omega).
+\]
+Define
+\[
+a(u,v)=\int_\Omega \grad u\cdot\grad v\,\dd x,
+\qquad
+\ell(v)=\int_\Omega fv\,\dd x.
+\]
+Then:
+\begin{itemize}
+    \item $a$ is bilinear and bounded on $H_0^1(\Omega)$;
+    \item $a$ is coercive because
+    \[
+    a(v,v)=\norm{\grad v}_{L^2}^2 \ge c\norm{v}_{H^1}^2
+    \]
+    by Poincare's inequality;
+    \item $\ell\in (H_0^1(\Omega))^*$ whenever $f\in L^2(\Omega)$ or more generally $f\in H^{-1}(\Omega)$.
+\end{itemize}
+
+Thus the problem is well posed by the Riesz representation theorem in the symmetric case, or more generally by the Lax--Milgram theorem.
+
+\subsection{Stability viewpoint}
+
+For well-posed problems, the norm of the solution is controlled by the norm of the data. For the Dirichlet Poisson problem one gets
+\[
+\norm{u}_{H_0^1(\Omega)} \le C\norm{f}_{H^{-1}(\Omega)}.
+\]
+This is one mathematical expression of physical stability: small perturbations in the input produce small perturbations in the solution.
+
+\section{Lax--Milgram and model boundary value problems}
+
+\subsection{The theorem}
+
+\begin{theorem}[Lax--Milgram]
+Let $V$ be a Hilbert space, let $a:V\times V\to\R$ be bilinear, bounded, and coercive, and let $\ell\in V^*$. Then there exists a unique $u\in V$ such that
+\[
+a(u,v)=\ell(v) \qquad \forall v\in V.
+\]
+Moreover,
+\[
+\norm{u}_V \le \frac{1}{\alpha}\norm{\ell}_{V^*},
+\]
+where $\alpha>0$ is the coercivity constant of $a$.
+\end{theorem}
+
+\begin{remark}
+The supplementary notes also record a Banach fixed point proof: define the operator $A:V\to V^*$ by $(Au)(v)=a(u,v)$, convert the problem to $Au=\ell$, and construct a contraction for a suitable relaxation parameter. This perspective is especially useful later when dealing with nonsymmetric perturbations.
+\end{remark}
+
+\subsection{Poisson with variable diffusivity and Dirichlet data}
+
+Consider
+\[
+-\nabla\cdot(\alpha\nabla u)=f \quad \text{in } \Omega,
+\qquad u=g \quad \text{on } \partial\Omega,
+\]
+with $0<\underline\alpha\le \alpha(x)\le \overline\alpha<\infty$ almost everywhere.
+
+Choose a lifting $G=\gamma^\dagger g\in H^1(\Omega)$ and write $u=G+w$ with $w\in H_0^1(\Omega)$. Then the variational problem is
+\[
+\text{find } w\in H_0^1(\Omega) \text{ such that }
+\int_\Omega \alpha\nabla w\cdot\nabla v\,\dd x
+= \ip{f}{v} - \int_\Omega \alpha\nabla G\cdot\nabla v\,\dd x
+\quad \forall v\in H_0^1(\Omega).
+\]
+The bilinear form is bounded because $\alpha\in L^\infty$, and it is coercive because
+\[
+a(v,v)=\int_\Omega \alpha\abs{\nabla v}^2\,\dd x \ge \underline\alpha\norm{\nabla v}_{L^2}^2 \ge c\norm{v}_{H^1}^2.
+\]
+Hence the problem is well posed, with
+\[
+\norm{u}_{H^1(\Omega)} \le C\big(\norm{f}_{H^{-1}(\Omega)} + \norm{g}_{H^{1/2}(\partial\Omega)}\big).
+\]
+
+\subsection{Diffusion--reaction with Neumann boundary conditions}
+
+Consider
+\[
+-\Delta u + ru = f \quad \text{in } \Omega,
+\qquad \partial_\nu u = g \quad \text{on } \partial\Omega,
+\]
+where $r\in L^\infty(\Omega)$ and $r(x)\ge r_0>0$ a.e.
+
+The weak form on $H^1(\Omega)$ is
+\[
+\int_\Omega \grad u\cdot\grad v\,\dd x + \int_\Omega ruv\,\dd x
+= \ip{f}{v} + \ip{g}{\gamma v}
+\qquad \forall v\in H^1(\Omega).
+\]
+Here positivity of $r$ is crucial: it restores control of the $L^2$ part of the $H^1$ norm. Without it, constants would remain in the kernel, as in the pure Neumann problem below.
+
+\subsection{Poisson with pure Neumann boundary conditions}
+
+Consider
+\[
+-\Delta u = f \quad \text{in } \Omega,
+\qquad \partial_\nu u = g \quad \text{on } \partial\Omega.
+\]
+A compatibility condition is necessary:
+\[
+\ip{f}{1} + \ip{g}{1} = 0.
+\]
+
+The full space $H^1(\Omega)$ is too large because constants lie in the kernel of
+\[
+a(u,v)=\int_\Omega \grad u\cdot\grad v\,\dd x.
+\]
+On the other hand $H_0^1(\Omega)$ is too small because it incorrectly imposes homogeneous Dirichlet data and erases the Neumann term. The correct space is
+\[
+\eH^1(\Omega)=\set{u\in H^1(\Omega): \int_\Omega u\,\dd x=0}.
+\]
+On this space the weak problem becomes
+\[
+\int_\Omega \grad u\cdot\grad v\,\dd x = \ip{f}{v}+\ip{g}{\gamma v}
+\qquad \forall v\in \eH^1(\Omega),
+\]
+and coercivity follows from the Poincare--Neumann inequality.
+
+\subsection{Mixed Dirichlet--Neumann problems}
+
+Let $\partial\Omega = \Gamma_D\cup \Gamma_N$ with $\Gamma_D\cap\Gamma_N=\varnothing$ and both pieces of positive surface measure. Consider
+\[
+-\Delta u=f \quad \text{in } \Omega,
+\qquad u=g_D \text{ on } \Gamma_D,
+\qquad \partial_\nu u = g_N \text{ on } \Gamma_N.
+\]
+
+Let
+\[
+V = \set{v\in H^1(\Omega): \gamma v=0 \text{ on } \Gamma_D}.
+\]
+Choose a lifting $G$ of the Dirichlet data on $\Gamma_D$ and write $u=G+w$ with $w\in V$. Then
+\[
+\int_\Omega \grad w\cdot\grad v\,\dd x
+= \ip{f}{v} + \ip{g_N}{\gamma v}_{\Gamma_N} - \int_\Omega \grad G\cdot\grad v\,\dd x
+\qquad \forall v\in V.
+\]
+Coercivity holds on $V$ because the presence of a positive-measure Dirichlet part restores a Friedrichs-type inequality.
+
+\subsection{Robin boundary conditions}
+
+Consider
+\[
+-\Delta u=f \quad \text{in } \Omega,
+\qquad \partial_\nu u + \beta u = g \quad \text{on } \partial\Omega,
+\]
+with $\beta\in L^\infty(\partial\Omega)$ and $\beta(x)\ge \beta_0>0$ a.e. Then the weak form is
+\[
+\int_\Omega \grad u\cdot\grad v\,\dd x + \int_{\partial\Omega} \beta\,\gamma u\,\gamma v\,\dd s
+= \ip{f}{v}+\ip{g}{\gamma v}
+\qquad \forall v\in H^1(\Omega).
+\]
+
+The key coercivity tool is the Robin--Poincare inequality:
+\[
+\norm{v}_{L^2(\Omega)} \le C_R\big(\norm{\grad v}_{L^2(\Omega)} + \norm{\gamma v}_{L^2(\partial\Omega)}\big).
+\]
+This shows that the combination of interior gradient energy and boundary penalty controls the full $H^1$ norm.
+
+\subsection{A nonsymmetric convection--diffusion example}
+
+The class notes also treat
+\[
+-\nabla\cdot(\alpha\nabla u) - \beta\cdot\nabla u = f \quad \text{in } \Omega,
+\qquad \alpha\partial_\nu u = g \quad \text{on } \partial\Omega,
+\]
+with $\beta\in W^{1,\infty}(\Omega;\R^n)$. The natural weak form on the mean-zero space is
+\[
+a(u,v)=\int_\Omega \alpha\nabla u\cdot\nabla v\,\dd x - \int_\Omega (\beta\cdot\nabla u)v\,\dd x.
+\]
+Even though $a$ is not symmetric, one can still prove boundedness and coercivity under the sign assumptions
+\[
+\nabla\cdot\beta \ge 0 \quad \text{in } \Omega,
+\qquad \beta\cdot n \le 0 \quad \text{on } \partial\Omega.
+\]
+Indeed,
+\[
+-\int_\Omega (\beta\cdot\nabla v)v\,\dd x
+= \frac12 \int_\Omega (\nabla\cdot\beta) v^2\,\dd x
+- \frac12 \int_{\partial\Omega} (\beta\cdot n)(\gamma v)^2\,\dd s,
+\]
+so the convection contribution is nonnegative under those sign conditions. This is a useful model for how nonsymmetric terms are handled in weak formulations.
+
+\section{Galerkin approximation}
+
+\subsection{Abstract Galerkin method}
+
+Let $V$ be a Hilbert space, let $a:V\times V\to\R$ be bounded and coercive, and let $\ell\in V^*$. The continuous problem is
+\[
+\text{find } u\in V \text{ such that } a(u,v)=\ell(v) \quad \forall v\in V.
+\]
+Choose a finite-dimensional subspace $V_h\subset V$. The conforming Galerkin problem is
+\[
+\text{find } u_h\in V_h \text{ such that } a(u_h,v_h)=\ell(v_h) \quad \forall v_h\in V_h.
+\]
+Since $V_h$ is finite-dimensional, it is automatically Hilbert, so the discrete problem is well posed by the same abstract theory.
+
+\subsection{Matrix form}
+
+Let $\{\phi_1,\dots,\phi_N\}$ be a basis of $V_h$ and write
+\[
+u_h = \sum_{j=1}^N U_j\phi_j.
+\]
+Testing with $v_h=\phi_i$ yields
+\[
+\sum_{j=1}^N U_j a(\phi_j,\phi_i)=\ell(\phi_i), \qquad i=1,\dots,N.
+\]
+Thus
+\[
+A\mathbf{U}=\mathbf{L},
+\qquad
+A_{ij}=a(\phi_j,\phi_i),
+\qquad
+L_i=\ell(\phi_i).
+\]
+If $a$ is symmetric, then $A$ is symmetric. If $a$ is coercive, then $A$ is positive definite in the sense that
+\[
+\mathbf{U}^T A \mathbf{U} = a(u_h,u_h) \ge \alpha \norm{u_h}_V^2.
+\]
+
+\subsection{Galerkin orthogonality}
+
+Subtract the discrete equation from the continuous one. For every $v_h\in V_h$,
+\[
+a(u-u_h,v_h)=0.
+\]
+This is the fundamental orthogonality relation. In the symmetric case it means the error is orthogonal to the trial space in the energy inner product induced by $a$.
+
+\begin{remark}
+When $a$ is symmetric and coercive, the Galerkin solution is the energy projection of the exact solution onto $V_h$. This is the precise sense in which the discrete solution is ``best possible inside the chosen space.''
+\end{remark}
+
+\subsection{Cea's lemma}
+
+\begin{theorem}[Cea's lemma]
+Let $a$ be bounded with continuity constant $M$ and coercive with constant $\alpha$. If $u\in V$ and $u_h\in V_h$ solve the continuous and Galerkin problems, then
+\[
+\norm{u-u_h}_V \le \frac{M}{\alpha} \inf_{v_h\in V_h} \norm{u-v_h}_V.
+\]
+\end{theorem}
+
+\begin{proof}
+Fix any $v_h\in V_h$. Since $u_h-v_h\in V_h$, Galerkin orthogonality gives
+\[
+a(u-u_h,u_h-v_h)=0.
+\]
+By coercivity,
+\[
+\alpha\norm{u-u_h}_V^2 \le a(u-u_h,u-u_h).
+\]
+Insert $u-v_h=(u-u_h)+(u_h-v_h)$ to obtain
+\[
+\alpha\norm{u-u_h}_V^2
+\le a(u-u_h,u-v_h).
+\]
+Then boundedness yields
+\[
+\alpha\norm{u-u_h}_V^2 \le M\norm{u-u_h}_V\norm{u-v_h}_V.
+\]
+Cancel $\norm{u-u_h}_V$ and minimize over $v_h\in V_h$.
+\end{proof}
+
+Thus the discrete error is controlled by the best approximation error up to the constant $M/\alpha$.
+
+\subsection{Convergence under density}
+
+If $V_h\subset V$ is a sequence of finite-dimensional spaces with dense union,
+\[
+\overline{\bigcup_h V_h}=V,
+\]
+then Cea's lemma implies $u_h\to u$ in $V$ as the approximation spaces are refined.
+
+\section{Triangulations and piecewise polynomial spaces}
+
+\subsection{Why local basis functions matter}
+
+A global basis with support over the whole domain would produce dense matrices and poor computational scaling. FEM instead uses local basis functions supported on a few elements only. This is the structural reason stiffness matrices are sparse.
+
+\subsection{Admissible triangulations}
+
+Assume for simplicity that $\Omega\subset\R^2$ is a bounded polygonal domain. An admissible triangulation $\mathcal{T}_h$ is a finite collection of triangles $K$ such that:
+\begin{enumerate}
+    \item each $K\subset\Omega$;
+    \item $\bigcup_{K\in\mathcal{T}_h} K = \Omega$;
+    \item if $K\neq K'$, then $K\cap K'$ is either empty, a common vertex, or a full common edge.
+\end{enumerate}
+
+No hanging nodes are allowed. If the boundary is split as $\partial\Omega=\Gamma_D\cup\Gamma_N$, the mesh should respect that decomposition: an edge lying on the boundary belongs entirely either to $\Gamma_D$ or to $\Gamma_N$.
+
+\subsection{Mesh parameters}
+
+The mesh size is typically
+\[
+h = \max_{K\in\mathcal{T}_h} h_K,
+\]
+where $h_K$ is the diameter or longest edge length of $K$.
+
+To measure element quality, one introduces the regularity parameter
+\[
+\beta_{\mathcal{T}_h} = \max_{K\in\mathcal{T}_h} \frac{R_K}{r_K},
+\]
+where $R_K$ and $r_K$ are the circumradius and inradius of $K$. A family of triangulations is \emph{shape regular} if
+\[
+\sup_h \beta_{\mathcal{T}_h} < \infty.
+\]
+This rules out arbitrarily thin, needle-like triangles, which would lead to poor approximation and numerical instability.
+
+\section{The $P_1$ Lagrange finite element space}
+
+\subsection{Local affine polynomials}
+
+For a triangle $K\subset\R^2$, define
+\[
+P_1(K)=\set{f:K\to\R : f(x,y)=a_0+a_1x+a_2y}.
+\]
+This is a three-dimensional space. Values at the three vertices uniquely determine the affine function.
+
+\subsection{Global conforming space}
+
+Given a triangulation $\mathcal{T}_h$, define the continuous piecewise affine space
+\[
+P_1(\mathcal{T}_h) = \set{v:\Omega\to\R : v|_K\in P_1(K) \text{ for every } K\in\mathcal{T}_h,\ v \text{ is continuous on } \Omega}.
+\]
+Because each restriction is affine, the gradient is constant on each element, hence square integrable. Continuity across inter-element boundaries ensures that $P_1(\mathcal{T}_h)\subset H^1(\Omega)$.
+
+\subsection{Nodal basis}
+
+Let $P_1,\dots,P_N$ be the nodes (vertices) of the triangulation. For each node $P_i$, define the hat function $\phi_i\in P_1(\mathcal{T}_h)$ by
+\[
+\phi_i(P_j)=\delta_{ij}.
+\]
+Then $\{\phi_1,\dots,\phi_N\}$ is a basis of $P_1(\mathcal{T}_h)$, called the nodal basis.
+
+These functions have compact local support:
+\[
+\supp(\phi_i)=\bigcup \set{K\in\mathcal{T}_h : P_i \text{ is a vertex of } K}.
+\]
+Hence the stiffness matrix entry $A_{ij}$ can only be nonzero if $\supp(\phi_i)\cap\supp(\phi_j)\neq\varnothing$, i.e. only if the two nodes belong to a common element. This is the origin of sparsity.
+
+\begin{remark}
+The dimension of $P_1(\mathcal{T}_h)$ is exactly the number of mesh nodes. In practice the nodal values are the degrees of freedom.
+\end{remark}
+
+\subsection{Dirichlet and free nodes}
+
+When part of the boundary carries Dirichlet data, nodes on that part are Dirichlet nodes; the others are free nodes. If a node lies on the Dirichlet boundary, its value is prescribed by the boundary data and is therefore not an unknown in the reduced linear system.
+
+\section{Assembly and imposition of boundary conditions}
+
+\subsection{Elementwise structure}
+
+For a model bilinear form such as
+\[
+a(u,v)=\int_\Omega \grad u\cdot\grad v\,\dd x,
+\]
+one computes
+\[
+A_{ij}=\int_\Omega \grad\phi_j\cdot\grad\phi_i\,\dd x
+= \sum_{K\in\mathcal{T}_h} \int_K \grad\phi_j\cdot\grad\phi_i\,\dd x.
+\]
+Thus assembly is performed element by element. The same applies to load vectors and to boundary terms such as Neumann or Robin contributions.
+
+\subsection{Block structure for Dirichlet data}
+
+Suppose nodes are ordered so that all free nodes come first and all Dirichlet nodes come last. Decompose the coefficient vector as
+\[
+\mathbf{U}=
+\begin{bmatrix}
+\mathbf{U}_f\\
+\mathbf{g}
+\end{bmatrix},
+\]
+where $\mathbf{g}$ contains prescribed nodal boundary values. Then the full linear system can be written in block form as
+\[
+\begin{bmatrix}
+A_{ff} & A_{fd}\\
+A_{df} & A_{dd}
+\end{bmatrix}
+\begin{bmatrix}
+\mathbf{U}_f\\
+\mathbf{g}
+\end{bmatrix}
+=
+\begin{bmatrix}
+\mathbf{L}_f\\
+\mathbf{L}_d
+\end{bmatrix}.
+\]
+The bottom block is not needed for solving the free unknowns. One obtains the reduced system
+\[
+A_{ff}\mathbf{U}_f = \mathbf{L}_f - A_{fd}\mathbf{g}.
+\]
+After solving for $\mathbf{U}_f$, one reconstructs the full coefficient vector by reinserting the prescribed boundary values.
+
+\subsection{Implementation bookkeeping}
+
+The handwritten notes emphasize the basic data structures needed for a code implementation:
+\begin{itemize}
+    \item a node list: an $N\times 2$ array of $(x_i,y_i)$ coordinates;
+    \item an element connectivity matrix: each row stores the three vertex indices of a triangle;
+    \item boundary lists, especially the set of Dirichlet nodes (and, when needed, Neumann edges).
+\end{itemize}
+
+Even at this simple level, one already sees the full architecture of a finite element code: geometry, local basis functions, assembly, boundary treatment, and sparse linear algebra.
+
+\section{A compact conceptual summary}
+
+The course material can be compressed into the following chain of ideas.
+
+\begin{enumerate}
+    \item \textbf{Weak formulations are not optional.} They are the natural setting for PDEs with rough coefficients, low regularity solutions, and boundary conditions interpreted through traces.
+    \item \textbf{Sobolev spaces are the correct ambient spaces.} They encode square-integrable derivatives rather than classical differentiability.
+    \item \textbf{Boundary data split into two types.} Dirichlet data are essential and enter through the trial space or a lifting; Neumann and Robin data are natural and appear in the variational identity.
+    \item \textbf{Well posedness is an operator-theoretic question.} Boundedness and coercivity of the bilinear form, together with the correct choice of space, yield existence, uniqueness, and stability by Lax--Milgram.
+    \item \textbf{Galerkin approximation is the bridge to computation.} Choose a finite-dimensional subspace, write the discrete solution in a basis, and obtain a linear system.
+    \item \textbf{Local basis functions create sparse matrices.} This is the computational heart of FEM.
+    \item \textbf{Cea's lemma explains the quality of the method.} The Galerkin solution is quasi-optimal: it is as good as the best approximation in the chosen trial space, up to a constant.
+\end{enumerate}
+
+\section*{Suggested ways to use these notes}
+
+For later study, one useful reading order is:
+\begin{enumerate}
+    \item review Sections 1, 5, and 6 to keep the PDE-to-weak-form pipeline clear;
+    \item then revisit Sections 2, 3, and 4 whenever a functional-analytic point comes up;
+    \item finally use Sections 7--10 as the bridge from analysis to implementation.
+\end{enumerate}
+
+The notes were intentionally organized by mathematical development rather than by lecture date or homework number. The homework problems enter as worked examples of the main theory rather than as isolated exercises.
+
+\end{document}
